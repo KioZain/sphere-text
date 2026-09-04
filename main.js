@@ -15,7 +15,7 @@ const MAX_BLOCKS = 4;
 // Short = strong perspective, long = flat "telephoto" look.
 const MIN_FOCAL_LENGTH = 24;
 const MAX_FOCAL_LENGTH = 200;
-const DEFAULT_FOCAL_LENGTH = 50;
+const DEFAULT_FOCAL_LENGTH = 100;
 
 const canvas = document.getElementById("canvas");
 const viewport = document.querySelector(".viewport");
@@ -34,6 +34,7 @@ const textColorInput = document.getElementById("text-color");
 const pageBgColorInput = document.getElementById("page-bg-color");
 const transparentSphereInput = document.getElementById("transparent-sphere");
 const debugBoundsInput = document.getElementById("debug-bounds");
+const debugToggleBtn = document.getElementById("debug-toggle");
 const alignButtons = [...document.querySelectorAll(".segmented__btn[data-align]")];
 const saveBtn = document.getElementById("save-btn");
 const exportSettingsBtn = document.getElementById("export-settings-btn");
@@ -131,7 +132,9 @@ const blocksState = [];
 
 function makeBlock(overrides = {}) {
   blockSeq += 1;
-  return { id: `b${blockSeq}`, text: "", weight: 400, size: 96, lineFactor: 0.8, ...overrides };
+  // Bold is the only weight offered publicly; the Regular option lives behind
+  // debug mode, so new blocks start bold.
+  return { id: `b${blockSeq}`, text: "", weight: 700, size: 96, lineFactor: 0.8, ...overrides };
 }
 
 blocksState.push(
@@ -580,7 +583,7 @@ function clearDropIndicators() {
 
 function addBlock() {
   if (blocksState.length >= MAX_BLOCKS) return;
-  blocksState.push(makeBlock({ text: "", weight: 400, size: 48, lineFactor: 0.9 }));
+  blocksState.push(makeBlock({ text: "", weight: 700, size: 48, lineFactor: 0.9 }));
   renderBlocks();
   drawTexture();
   const lastText = blocksContainer.lastElementChild?.querySelector(".block__text");
@@ -751,6 +754,29 @@ async function loadPreviewFont() {
 
 // --- Wiring -----------------------------------------------------------------
 
+/**
+ * Debug mode reveals the controls kept out of the public panel (scale, font
+ * weight, focal length, the bounds overlay and the settings export). Values set
+ * there survive leaving the mode — that is the point of dialling a look in and
+ * then presenting it.
+ */
+function setDebugMode(enabled) {
+  document.body.classList.toggle("is-debug", enabled);
+  debugToggleBtn.setAttribute("aria-pressed", String(enabled));
+  debugToggleBtn.setAttribute(
+    "aria-label",
+    enabled ? "Выйти из режима отладки" : "Режим отладки",
+  );
+
+  // The bounds overlay is the exception: it is scaffolding, not a look. Leaving
+  // it painted on the sphere with no visible control to clear it would strand
+  // the user outside debug mode.
+  if (!enabled && debugBoundsInput.checked) {
+    debugBoundsInput.checked = false;
+    drawTexture();
+  }
+}
+
 function setTextAlign(next) {
   textAlign = next;
   for (const button of alignButtons) {
@@ -766,6 +792,9 @@ for (const button of alignButtons) {
   button.addEventListener("click", () => setTextAlign(button.dataset.align));
 }
 debugBoundsInput.addEventListener("change", drawTexture);
+debugToggleBtn.addEventListener("click", () => {
+  setDebugMode(!document.body.classList.contains("is-debug"));
+});
 transparentSphereInput.addEventListener("change", applySphereTransparency);
 textColorInput.addEventListener("input", drawTexture);
 pageBgColorInput.addEventListener("input", () => updatePageBackground(pageBgColorInput.value));
@@ -802,6 +831,7 @@ window.addEventListener("resize", resize);
 focalLengthInput.min = String(MIN_FOCAL_LENGTH);
 focalLengthInput.max = String(MAX_FOCAL_LENGTH);
 focalLengthInput.value = String(DEFAULT_FOCAL_LENGTH);
+setDebugMode(false);
 setTextAlign(textAlign);
 updateBlockGapLabel();
 updateAngleLabel();

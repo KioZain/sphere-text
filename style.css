@@ -842,6 +842,78 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   touch-action: none;
 }
 
+/* --- Режим отладки ---------------------------------------------------------- */
+
+/* Скрываем без !important и без display:none на самом элементе: правило просто
+   перестаёт применяться в режиме отладки, и контрол возвращает свою нормальную
+   раскладку (.field — flex, .section — flex) вместо display:block. */
+body:not(.is-debug) .debug-only {
+  display: none;
+}
+
+/* Без селекта «Начертание» вторая колонка осталась бы пустой. */
+body:not(.is-debug) .field-row--size {
+  grid-template-columns: 1fr;
+}
+
+.debug-corner {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.debug-corner__label {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--popover);
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+/* Пока режим выключен — тултип по ховеру; когда включён — постоянная подпись. */
+.debug-corner:hover .debug-corner__label,
+.debug-corner:focus-within .debug-corner__label {
+  opacity: 1;
+}
+
+body.is-debug .debug-corner__label {
+  opacity: 1;
+  color: var(--foreground);
+}
+
+/* Кнопка лежит поверх сферы, поэтому ей нужен собственный фон. */
+.debug-corner__btn {
+  border: 1px solid var(--border);
+  background: var(--popover);
+  color: var(--muted-foreground);
+}
+
+body.is-debug .debug-corner__btn {
+  color: var(--foreground);
+}
+
+.debug-corner__close {
+  display: none;
+}
+
+body.is-debug .debug-corner__bug {
+  display: none;
+}
+
+body.is-debug .debug-corner__close {
+  display: block;
+}
+
 .viewport--position-mode {
   cursor: grab;
 }
