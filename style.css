@@ -318,11 +318,13 @@ input[type="text"] {
   outline: none;
 }
 
+/* Только background-color: шорткат background сбросил бы background-repeat
+   и chevron у <select> размножился бы плиткой. */
 .dark textarea,
 .dark select,
 .dark input[type="number"],
 .dark input[type="text"] {
-  background: color-mix(in oklab, var(--input) 30%, transparent);
+  background-color: color-mix(in oklab, var(--input) 30%, transparent);
 }
 
 textarea::placeholder,
@@ -361,11 +363,6 @@ select {
   background-size: 1rem 1rem;
   cursor: pointer;
   white-space: nowrap;
-}
-
-.dark select {
-  background-image: var(--select-chevron);
-  background-color: color-mix(in oklab, var(--input) 30%, transparent);
 }
 
 .dark select:hover {
@@ -407,7 +404,7 @@ input[type="color"] {
 }
 
 .dark input[type="color"] {
-  background: color-mix(in oklab, var(--input) 30%, transparent);
+  background-color: color-mix(in oklab, var(--input) 30%, transparent);
 }
 
 input[type="color"]:focus-visible {
@@ -817,16 +814,9 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 /* --- Sidebar footer --------------------------------------------------------- */
 
 .panel__footer {
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  margin: auto calc(var(--panel-px) * -1) calc(var(--panel-py) * -1);
-  padding: 1rem var(--panel-px) var(--panel-py);
-  border-top: 1px solid var(--sidebar-border);
-  background: var(--sidebar);
 }
 
 .hint {
@@ -877,10 +867,6 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   .panel {
     border-right: none;
     border-bottom: 1px solid var(--sidebar-border);
-  }
-
-  .panel__footer {
-    position: static;
   }
 
   .viewport {
