@@ -140,20 +140,43 @@ function commandsToContours(commands, place) {
  * pre-positioned list produced by main.js:
  *   { text, weight, sizePx, centerY }  // centerY = row's vertical centre
  *                                       // relative to the texture centre
- * `fontMap` maps a weight (400/700) to a parsed opentype.Font. Centering,
+ * `fontMap` maps a weight (400/700) to a parsed opentype.Font. Alignment,
  * middle-baseline emulation and global rotation are applied here.
+ *
+ * `align` is "center" (each row centred on its own) or "left" (all rows flush to
+ * the composition box's left edge), matching what the preview draws on canvas.
  */
-export function getCompositionContours(rows, fontMap, textureWidth, textureHeight, angleRadians) {
+export function getCompositionContours(
+  rows,
+  fontMap,
+  textureWidth,
+  textureHeight,
+  angleRadians,
+  align = "center",
+) {
   const cos = Math.cos(angleRadians);
   const sin = Math.sin(angleRadians);
   const centerX = textureWidth / 2;
   const centerY = textureHeight / 2;
 
+  const fontFor = (row) => fontMap[row.weight] || fontMap[400] || Object.values(fontMap)[0];
+
+  // Left alignment needs the box's left edge, so every row has to be measured up
+  // front — with the same opentype metrics that place the glyphs below.
+  let maxWidth = 0;
+  if (align === "left") {
+    for (const row of rows) {
+      const font = row.text ? fontFor(row) : null;
+      if (!font) continue;
+      maxWidth = Math.max(maxWidth, font.getAdvanceWidth(row.text, row.sizePx));
+    }
+  }
+
   const allContours = [];
 
   for (const row of rows) {
     if (!row.text) continue;
-    const font = fontMap[row.weight] || fontMap[400] || Object.values(fontMap)[0];
+    const font = fontFor(row);
     if (!font) continue;
 
     // Canvas `textBaseline = "middle"` centres on the em box. Reproduce that by
@@ -163,9 +186,11 @@ export function getCompositionContours(rows, fontMap, textureWidth, textureHeigh
     const lineWidth = font.getAdvanceWidth(row.text, row.sizePx);
     const path = font.getPath(row.text, 0, 0, row.sizePx);
 
+    const originX = align === "left" ? -maxWidth / 2 : -lineWidth / 2;
+
     const place = (px, py) => {
-      // Local space: x centred on the line, y measured from the row centre.
-      const localX = px - lineWidth / 2;
+      // Local space: x aligned inside the box, y measured from the row centre.
+      const localX = px + originX;
       const localY = row.centerY + middleOffset + py;
       // Apply the same rotation + translation the preview applies on canvas.
       return {

@@ -33,6 +33,8 @@ const focalLengthInput = document.getElementById("focal-length");
 const textColorInput = document.getElementById("text-color");
 const pageBgColorInput = document.getElementById("page-bg-color");
 const transparentSphereInput = document.getElementById("transparent-sphere");
+const debugBoundsInput = document.getElementById("debug-bounds");
+const alignButtons = [...document.querySelectorAll(".segmented__btn[data-align]")];
 const saveBtn = document.getElementById("save-btn");
 const exportSettingsBtn = document.getElementById("export-settings-btn");
 
@@ -136,12 +138,18 @@ blocksState.push(
   makeBlock({ text: "Самый\nбольшой\nприз", weight: 700, size: 110, lineFactor: 0.8 }),
 );
 
+// Global horizontal alignment of the rows inside the composition box: "center"
+// (every row centred on its own) or "left" (all rows flush to the box's left
+// edge). The box itself stays centred on the sphere either way.
+let textAlign = "center";
+
 function getGlobalSettings() {
   return {
     scale: Number(scaleInput.value) / 100,
     betweenFactor: Number(blockGapInput.value) / 100,
     angleRadians: (Number(textAngleInput.value) * Math.PI) / 180,
     textColor: textColorInput.value,
+    align: textAlign,
   };
 }
 
@@ -188,12 +196,27 @@ function buildComposition() {
     const wrapped = wrapLines(textureContext, text.split("\n"), TEXTURE_WIDTH * 0.72);
 
     for (const line of wrapped) {
-      flat.push({ text: line, weight: block.weight, sizePx, lineFactor: block.lineFactor, blockIndex });
+      // The font is already set for this block, so measure the row while we are
+      // here: alignment and the debug box both need the row widths.
+      flat.push({
+        text: line,
+        weight: block.weight,
+        sizePx,
+        lineFactor: block.lineFactor,
+        blockIndex,
+        width: textureContext.measureText(line).width,
+      });
     }
   });
 
   if (flat.length === 0) {
-    return { rows: [], angleRadians: global.angleRadians, textColor: global.textColor };
+    return {
+      rows: [],
+      angleRadians: global.angleRadians,
+      textColor: global.textColor,
+      align: global.align,
+      maxWidth: 0,
+    };
   }
 
   // Vertical advances: within a block -> its own line-height; between blocks ->
@@ -220,26 +243,71 @@ function buildComposition() {
     row.centerY = ys[i] - total / 2;
   });
 
-  return { rows: flat, angleRadians: global.angleRadians, textColor: global.textColor };
+  return {
+    rows: flat,
+    angleRadians: global.angleRadians,
+    textColor: global.textColor,
+    align: global.align,
+    maxWidth: Math.max(...flat.map((row) => row.width)),
+  };
 }
 
 function drawComposition(context, composition) {
   if (composition.rows.length === 0) return;
 
+  const flushLeft = composition.align === "left";
+
   context.fillStyle = composition.textColor;
-  context.textAlign = "center";
+  context.textAlign = flushLeft ? "left" : "center";
   context.textBaseline = "middle";
 
   context.save();
   context.translate(TEXTURE_WIDTH / 2, TEXTURE_HEIGHT / 2);
   context.rotate(composition.angleRadians);
 
+  // Left alignment flushes every row to the box's left edge; centre alignment
+  // centres each row on its own. Either way the box stays centred on the sphere.
+  const originX = flushLeft ? -composition.maxWidth / 2 : 0;
+
   for (const row of composition.rows) {
     if (!row.text) continue;
     context.font = `${row.weight} ${row.sizePx}px "${FONT_FAMILY}", sans-serif`;
-    context.fillText(row.text, 0, row.centerY);
+    context.fillText(row.text, originX, row.centerY);
   }
 
+  context.restore();
+}
+
+/**
+ * Vertical extent of the composition box, relative to its centre. Rows are drawn
+ * with `textBaseline = "middle"`, so each occupies its em box: `sizePx` tall,
+ * centred on `centerY`.
+ */
+function compositionExtent(rows) {
+  let top = Infinity;
+  let bottom = -Infinity;
+  for (const row of rows) {
+    top = Math.min(top, row.centerY - row.sizePx / 2);
+    bottom = Math.max(bottom, row.centerY + row.sizePx / 2);
+  }
+  return { top, bottom };
+}
+
+/**
+ * Debug overlay: fills the composition's bounding box so its width and height
+ * are readable as they wrap around the sphere. Preview only — the SVG export
+ * builds its geometry from glyph outlines and never reads this texture.
+ */
+function drawContainerBounds(context, composition) {
+  if (composition.rows.length === 0) return;
+
+  const { top, bottom } = compositionExtent(composition.rows);
+
+  context.save();
+  context.translate(TEXTURE_WIDTH / 2, TEXTURE_HEIGHT / 2);
+  context.rotate(composition.angleRadians);
+  context.fillStyle = contrastColor(composition.textColor);
+  context.fillRect(-composition.maxWidth / 2, top, composition.maxWidth, bottom - top);
   context.restore();
 }
 
@@ -250,6 +318,9 @@ function drawTexture() {
   if (!transparentSphereInput.checked) {
     textureContext.fillStyle = SPHERE_COLOR;
     textureContext.fillRect(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT);
+  }
+  if (debugBoundsInput.checked) {
+    drawContainerBounds(textureContext, composition);
   }
   drawComposition(textureContext, composition);
   texture.needsUpdate = true;
@@ -263,17 +334,71 @@ function applySphereTransparency() {
   drawTexture();
 }
 
-function mixHexColor(hex, amount) {
+function parseHexColor(hex) {
   const value = hex.replace("#", "");
-  const channels = [
+  return [
     Number.parseInt(value.slice(0, 2), 16),
     Number.parseInt(value.slice(2, 4), 16),
     Number.parseInt(value.slice(4, 6), 16),
   ];
-  const mixed = channels.map((channel) =>
+}
+
+function toHexColor(channels) {
+  return `#${channels.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function rgbToHsl([r, g, b]) {
+  const [rn, gn, bn] = [r / 255, g / 255, b / 255];
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const lightness = (max + min) / 2;
+  const delta = max - min;
+  if (delta === 0) return [0, 0, lightness];
+
+  const saturation = lightness > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+  let hue;
+  if (max === rn) hue = ((gn - bn) / delta) % 6;
+  else if (max === gn) hue = (bn - rn) / delta + 2;
+  else hue = (rn - gn) / delta + 4;
+  hue *= 60;
+  return [hue < 0 ? hue + 360 : hue, saturation, lightness];
+}
+
+function hslToRgb(hue, saturation, lightness) {
+  const c = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const sector = hue / 60;
+  const x = c * (1 - Math.abs((sector % 2) - 1));
+  let rgb;
+  if (sector < 1) rgb = [c, x, 0];
+  else if (sector < 2) rgb = [x, c, 0];
+  else if (sector < 3) rgb = [0, c, x];
+  else if (sector < 4) rgb = [0, x, c];
+  else if (sector < 5) rgb = [x, 0, c];
+  else rgb = [c, 0, x];
+  const m = lightness - c / 2;
+  return rgb.map((channel) => Math.round((channel + m) * 255));
+}
+
+function mixHexColor(hex, amount) {
+  const mixed = parseHexColor(hex).map((channel) =>
     Math.min(255, Math.round(channel + (255 - channel) * amount)),
   );
-  return `#${mixed.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+  return toHexColor(mixed);
+}
+
+/**
+ * A colour that reads clearly against `hex`. Plain channel inversion is not
+ * enough: inverting a mid-lightness colour like #ff6a00 lands on a blue of
+ * almost the same lightness, and forcing that to the dark end would bury the
+ * fill in the black sphere. So take the opposite hue and push the lightness to
+ * the far side of the text's, keeping a saturation floor so grey text still
+ * yields a coloured box.
+ */
+function contrastColor(hex) {
+  const [hue, saturation, lightness] = rgbToHsl(parseHexColor(hex));
+  return toHexColor(
+    hslToRgb((hue + 180) % 360, Math.max(saturation, 0.55), lightness > 0.5 ? 0.32 : 0.68),
+  );
 }
 
 function updatePageBackground(color) {
@@ -310,6 +435,9 @@ function collectSettings() {
   const global = getGlobalSettings();
   const composition = buildComposition();
   const degrees = (radians) => round((radians * 180) / Math.PI);
+  const extent = composition.rows.length
+    ? compositionExtent(composition.rows)
+    : { top: 0, bottom: 0 };
 
   return {
     format: "sphere-typography/settings",
@@ -339,13 +467,20 @@ function collectSettings() {
       scale: round(global.scale),
       blockGapFactor: round(global.betweenFactor),
       textAngleDeg: Number(textAngleInput.value),
+      align: global.align,
       rowCount: composition.rows.length,
+      boxWidth: round(composition.maxWidth, 1),
+      boxHeight: round(extent.bottom - extent.top, 1),
     },
     colors: {
       text: textColorInput.value,
       pageBackground: pageBgColorInput.value,
       sphere: SPHERE_COLOR,
       transparentSphere: transparentSphereInput.checked,
+    },
+    debug: {
+      // Preview-only overlay; recorded for completeness, not part of the artwork.
+      boundsOverlay: debugBoundsInput.checked,
     },
     blocks: blocksState.map((block, index) => ({
       position: index + 1,
@@ -405,6 +540,7 @@ async function saveSvg() {
       TEXTURE_WIDTH,
       TEXTURE_HEIGHT,
       composition.angleRadians,
+      composition.align,
     );
 
     const svg = buildVectorSvg({
@@ -615,7 +751,21 @@ async function loadPreviewFont() {
 
 // --- Wiring -----------------------------------------------------------------
 
+function setTextAlign(next) {
+  textAlign = next;
+  for (const button of alignButtons) {
+    const active = button.dataset.align === next;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-checked", String(active));
+  }
+  drawTexture();
+}
+
 addBlockBtn.addEventListener("click", addBlock);
+for (const button of alignButtons) {
+  button.addEventListener("click", () => setTextAlign(button.dataset.align));
+}
+debugBoundsInput.addEventListener("change", drawTexture);
 transparentSphereInput.addEventListener("change", applySphereTransparency);
 textColorInput.addEventListener("input", drawTexture);
 pageBgColorInput.addEventListener("input", () => updatePageBackground(pageBgColorInput.value));
@@ -652,6 +802,7 @@ window.addEventListener("resize", resize);
 focalLengthInput.min = String(MIN_FOCAL_LENGTH);
 focalLengthInput.max = String(MAX_FOCAL_LENGTH);
 focalLengthInput.value = String(DEFAULT_FOCAL_LENGTH);
+setTextAlign(textAlign);
 updateBlockGapLabel();
 updateAngleLabel();
 updateScaleLabel();

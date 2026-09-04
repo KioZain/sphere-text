@@ -26,6 +26,42 @@
         <section class="section">
           <h2 class="section__title">Настройки текста</h2>
 
+          <div class="field">
+            <span class="field__label">Выравнивание</span>
+            <div class="segmented" role="radiogroup" aria-label="Выравнивание текста">
+              <button
+                type="button"
+                class="segmented__btn"
+                data-align="left"
+                role="radio"
+                aria-checked="false"
+                title="По левому краю"
+                aria-label="По левому краю"
+              >
+                <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+                  <rect x="2" y="3.2" width="12" height="1.5" rx="0.75" />
+                  <rect x="2" y="7.25" width="7.5" height="1.5" rx="0.75" />
+                  <rect x="2" y="11.3" width="10" height="1.5" rx="0.75" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="segmented__btn is-active"
+                data-align="center"
+                role="radio"
+                aria-checked="true"
+                title="По центру"
+                aria-label="По центру"
+              >
+                <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+                  <rect x="2" y="3.2" width="12" height="1.5" rx="0.75" />
+                  <rect x="4.25" y="7.25" width="7.5" height="1.5" rx="0.75" />
+                  <rect x="3" y="11.3" width="10" height="1.5" rx="0.75" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
           <label class="field">
             <span class="field__label">Расстояние между блоками</span>
             <input type="range" id="block-gap" min="40" max="260" value="120" />
@@ -89,6 +125,20 @@
             <span class="toggle__track" aria-hidden="true"></span>
             <span class="toggle__label">Прозрачная сфера (только текст)</span>
           </label>
+        </section>
+
+        <section class="section">
+          <h2 class="section__title">Отладка</h2>
+
+          <label class="toggle">
+            <input type="checkbox" id="debug-bounds" />
+            <span class="toggle__track" aria-hidden="true"></span>
+            <span class="toggle__label">Показать габариты текста</span>
+          </label>
+          <p class="field__hint">
+            Заливка контрастным цветом под текстом показывает ширину и высоту
+            текстового контейнера. Только в превью — в SVG не попадает.
+          </p>
         </section>
 
         <button type="button" class="btn" id="save-btn">Экспортировать в SVG</button>
