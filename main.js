@@ -17,6 +17,21 @@ const MIN_FOCAL_LENGTH = 24;
 const MAX_FOCAL_LENGTH = 200;
 const DEFAULT_FOCAL_LENGTH = 100;
 
+// Starting orbit, in OrbitControls angles around the sphere centre: azimuth from
+// +Z towards +X, polar from +Y. Taken from a dialled-in settings export — a
+// slightly low, off-axis view of the text. The user can still orbit away.
+const DEFAULT_CAMERA_AZIMUTH_DEG = 70.258;
+const DEFAULT_CAMERA_POLAR_DEG = 118.111;
+
+// Public type styles: the block size is picked from these. Must match the
+// options of `.block__style` in index.html. All of them are bold.
+const TEXT_STYLES = [
+  { name: "Акцент", size: 72 },
+  { name: "Основной текст", size: 40 },
+  { name: "Подписи", size: 24 },
+];
+const DEFAULT_TEXT_SIZE = 40; // «Основной текст»
+
 const canvas = document.getElementById("canvas");
 const viewport = document.querySelector(".viewport");
 const blocksContainer = document.getElementById("blocks");
@@ -59,10 +74,15 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(pageBgColorInput.value);
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-// Start looking at the text: the texture centre maps to +X on the sphere (u=0.5
-// -> theta=pi), so a camera on +Z would only catch it edge-on at the silhouette.
-// The distance here is nominal — applyCameraFraming() derives it from the lens.
-camera.position.set(5.2, 0, 0);
+// Start near the text: the texture centre maps to +X on the sphere (u=0.5 ->
+// theta=pi), so the default azimuth sits close to 90° rather than 0° (+Z), where
+// the text would only show edge-on at the silhouette. The radius here is
+// nominal — applyCameraFraming() keeps the direction and derives the distance.
+camera.position.setFromSphericalCoords(
+  1,
+  THREE.MathUtils.degToRad(DEFAULT_CAMERA_POLAR_DEG),
+  THREE.MathUtils.degToRad(DEFAULT_CAMERA_AZIMUTH_DEG),
+);
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
@@ -134,12 +154,17 @@ function makeBlock(overrides = {}) {
   blockSeq += 1;
   // Bold is the only weight offered publicly; the Regular option lives behind
   // debug mode, so new blocks start bold.
-  return { id: `b${blockSeq}`, text: "", weight: 700, size: 96, lineFactor: 0.8, ...overrides };
+  return {
+    id: `b${blockSeq}`,
+    text: "",
+    weight: 700,
+    size: DEFAULT_TEXT_SIZE,
+    lineFactor: 0.8,
+    ...overrides,
+  };
 }
 
-blocksState.push(
-  makeBlock({ text: "Самый\nбольшой\nприз", weight: 700, size: 110, lineFactor: 0.8 }),
-);
+blocksState.push(makeBlock({ text: "Самый\nбольшой\nприз", lineFactor: 0.8 }));
 
 // Global horizontal alignment of the rows inside the composition box: "center"
 // (every row centred on its own) or "left" (all rows flush to the box's left
@@ -583,7 +608,7 @@ function clearDropIndicators() {
 
 function addBlock() {
   if (blocksState.length >= MAX_BLOCKS) return;
-  blocksState.push(makeBlock({ text: "", weight: 700, size: 48, lineFactor: 0.9 }));
+  blocksState.push(makeBlock({ lineFactor: 0.9 }));
   renderBlocks();
   drawTexture();
   const lastText = blocksContainer.lastElementChild?.querySelector(".block__text");
@@ -647,12 +672,26 @@ function renderBlocks() {
       drawTexture();
     });
 
+    // The style picker is a shortcut for the size: a style sets it, and a size
+    // typed by hand selects the matching style, or "Свой размер" if none.
+    const styleSelect = node.querySelector(".block__style");
     const sizeInput = node.querySelector(".block__size");
+    const syncStyle = () => {
+      const style = TEXT_STYLES.find((entry) => entry.size === block.size);
+      styleSelect.value = style ? String(style.size) : "";
+    };
     sizeInput.value = String(block.size);
+    syncStyle();
+    styleSelect.addEventListener("change", () => {
+      block.size = Number(styleSelect.value);
+      sizeInput.value = String(block.size);
+      drawTexture();
+    });
     sizeInput.addEventListener("input", () => {
       const value = parseInt(sizeInput.value, 10);
       if (Number.isFinite(value) && value > 0) {
         block.size = Math.min(2000, value);
+        syncStyle();
         drawTexture();
       }
     });
@@ -755,10 +794,10 @@ async function loadPreviewFont() {
 // --- Wiring -----------------------------------------------------------------
 
 /**
- * Debug mode reveals the controls kept out of the public panel (scale, font
- * weight, focal length, the bounds overlay and the settings export). Values set
- * there survive leaving the mode — that is the point of dialling a look in and
- * then presenting it.
+ * Debug mode reveals the controls kept out of the public panel (scale, text
+ * angle, font weight, focal length, the bounds overlay and the settings
+ * export). Values set there survive leaving the mode — that is the point of
+ * dialling a look in and then presenting it.
  */
 function setDebugMode(enabled) {
   document.body.classList.toggle("is-debug", enabled);

@@ -851,7 +851,7 @@ body:not(.is-debug) .debug-only {
   display: none;
 }
 
-/* Без селекта «Начертание» вторая колонка осталась бы пустой. */
+/* Без поля «Кегль» вторая колонка осталась бы пустой. */
 body:not(.is-debug) .field-row--size {
   grid-template-columns: 1fr;
 }

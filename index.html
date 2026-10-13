@@ -134,12 +134,12 @@
             <input type="range" id="block-gap" min="40" max="260" value="120" />
           </label>
 
-          <label class="field">
+          <label class="field debug-only">
             <span class="field__head">
               <span class="field__label">Наклон текста</span>
-              <span class="field__value" id="text-angle-value">0°</span>
+              <span class="field__value" id="text-angle-value">-11°</span>
             </span>
-            <input type="range" id="text-angle" min="-45" max="45" value="0" />
+            <input type="range" id="text-angle" min="-45" max="45" value="-11" />
           </label>
 
           <label class="field debug-only">
@@ -334,18 +334,30 @@
         </div>
         <textarea class="block__text" rows="2" spellcheck="false" placeholder="Введите текст"></textarea>
         <div class="field-row field-row--size">
-          <label class="field debug-only">
-            <span class="field__label">Начертание</span>
-            <select class="block__weight">
-              <option value="400">Regular</option>
-              <option value="700">Bold</option>
+          <label class="field">
+            <span class="field__label">Стиль</span>
+            <!-- Значения — кегли пресетов; список синхронизирован с TEXT_STYLES
+                 в main.js. Пустой вариант показывается, когда кегль введён
+                 вручную и не совпадает ни с одним стилем. -->
+            <select class="block__style">
+              <option value="72">Акцент</option>
+              <option value="40">Основной текст</option>
+              <option value="24">Подписи</option>
+              <option value="" disabled hidden>Свой размер</option>
             </select>
           </label>
-          <label class="field">
+          <label class="field debug-only">
             <span class="field__label">Кегль</span>
             <input type="number" class="block__size" list="font-size-presets" min="1" max="2000" step="1" />
           </label>
         </div>
+        <label class="field debug-only">
+          <span class="field__label">Начертание</span>
+          <select class="block__weight">
+            <option value="400">Regular</option>
+            <option value="700">Bold</option>
+          </select>
+        </label>
         <label class="field">
           <span class="field__head">
             <span class="field__label">Интерлиньяж</span>
