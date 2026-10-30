@@ -184,19 +184,20 @@ function getGlobalSettings() {
 function wrapLines(context, lines, maxWidth) {
   const wrapped = [];
   for (const sourceLine of lines) {
-    const words = sourceLine.trim().split(/\s+/).filter(Boolean);
-    if (words.length === 0) {
-      wrapped.push("");
-      continue;
-    }
-    let currentLine = words[0];
-    for (let index = 1; index < words.length; index += 1) {
-      const candidate = `${currentLine} ${words[index]}`;
-      if (context.measureText(candidate).width <= maxWidth) {
+    // Spaces are kept as typed, wherever they are: every one has to show up on the
+    // sphere as soon as it is typed. Only the run a line wraps at is dropped.
+    // The split gives words at even indices and space runs at odd ones; a line
+    // ending in spaces has "" for its last word, which must not start a new row.
+    const parts = sourceLine.replace(/\s/g, " ").split(/( +)/);
+    let currentLine = parts[0];
+    for (let index = 1; index < parts.length; index += 2) {
+      const word = parts[index + 1];
+      const candidate = `${currentLine}${parts[index]}${word}`;
+      if (currentLine === "" || word === "" || context.measureText(candidate).width <= maxWidth) {
         currentLine = candidate;
       } else {
         wrapped.push(currentLine);
-        currentLine = words[index];
+        currentLine = word;
       }
     }
     wrapped.push(currentLine);
@@ -663,6 +664,15 @@ function renderBlocks() {
     textarea.addEventListener("input", () => {
       block.text = textarea.value;
       drawTexture();
+    });
+    // macOS replaces a double space with ". ". It can only do that to a key that
+    // reaches it, so a space after a space is inserted here instead. execCommand
+    // rather than setRangeText: it keeps undo working and fires `input`.
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key !== " " || event.isComposing || event.metaKey || event.ctrlKey) return;
+      if (textarea.value[textarea.selectionStart - 1] !== " ") return;
+      event.preventDefault();
+      document.execCommand("insertText", false, " ");
     });
 
     const weightSelect = node.querySelector(".block__weight");
